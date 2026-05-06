@@ -294,6 +294,7 @@ function validateAndRender(json, fileName) {
         jsonPointers: true,
         verbose: true,
     });
+    configureAjvFormats(ajv);
 
     const validate = ajv.compile(selectedSchema);
     const isValid = validate(json);
@@ -313,6 +314,66 @@ function validateAndRender(json, fileName) {
     elements.dropPanel.classList.add("is-hidden");
     hideErrors();
     setStatus("valid", fileName, `${listings.length} listing${listings.length === 1 ? "" : "s"} validated with ${selectedSchemaVersion}.`);
+}
+
+function configureAjvFormats(ajv) {
+    ajv.addFormat("email", {
+        type: "string",
+        validate: isEmailWithInternationalDomain,
+    });
+}
+
+function isEmailWithInternationalDomain(value) {
+    if (typeof value !== "string" || value.length > 254) {
+        return false;
+    }
+
+    const atIndex = value.indexOf("@");
+    if (atIndex <= 0 || atIndex !== value.lastIndexOf("@")) {
+        return false;
+    }
+
+    const localPart = value.slice(0, atIndex);
+    const domain = value.slice(atIndex + 1);
+    const asciiDomain = toAsciiDomain(domain);
+
+    return isValidEmailLocalPart(localPart) && isValidHostname(asciiDomain);
+}
+
+function isValidEmailLocalPart(localPart) {
+    return localPart.length <= 64
+        && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(localPart)
+        && !localPart.startsWith(".")
+        && !localPart.endsWith(".")
+        && !localPart.includes("..");
+}
+
+function toAsciiDomain(domain) {
+    if (!domain || /[\s/:?#\\]/.test(domain)) {
+        return "";
+    }
+
+    try {
+        const url = new URL(`https://${domain}`);
+        return url.hostname;
+    } catch (_error) {
+        return "";
+    }
+}
+
+function isValidHostname(hostname) {
+    if (!hostname || hostname.length > 253) {
+        return false;
+    }
+
+    const labels = hostname.replace(/\.$/, "").split(".");
+    if (labels.length < 2) {
+        return false;
+    }
+
+    return labels.every((label) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label))
+        && labels[labels.length - 1].length >= 2
+        && !/^\d+$/.test(labels[labels.length - 1]);
 }
 
 function toTableRow(listing, index) {
