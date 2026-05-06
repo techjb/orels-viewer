@@ -4,7 +4,7 @@ const schemaPaths = {
     "ES/1.2": "schemas/ES/1.2.json",
 };
 
-const listingFieldOrder = [
+const importantDetailFields = [
     "guid",
     "listingStatus",
     "listingDate",
@@ -15,19 +15,6 @@ const listingFieldOrder = [
     "price",
     "propertySize",
     "landSize",
-    "description",
-    "contactName",
-    "contactPhone",
-    "contactEmail",
-    "contactUrl",
-    "contactOther",
-    "address",
-    "lauId",
-    "lauName",
-    "latitude",
-    "longitude",
-    "locationIsAccurate",
-    "cadastralReference",
     "constructionYear",
     "constructionStatus",
     "floors",
@@ -35,6 +22,9 @@ const listingFieldOrder = [
     "bedrooms",
     "bathrooms",
     "parkings",
+];
+
+const featureDetailFields = [
     "terrace",
     "garden",
     "garage",
@@ -50,6 +40,36 @@ const listingFieldOrder = [
     "petsAllowed",
     "securitySystems",
 ];
+
+const descriptionDetailFields = ["description"];
+
+const locationDetailFields = [
+    "address",
+    "lauId",
+    "lauName",
+    "latitude",
+    "longitude",
+    "locationIsAccurate",
+    "cadastralReference",
+];
+
+const contactDetailFields = [
+    "contactName",
+    "contactPhone",
+    "contactEmail",
+    "contactUrl",
+    "contactOther",
+];
+
+const groupedDetailFields = new Set([
+    ...importantDetailFields,
+    ...featureDetailFields,
+    ...descriptionDetailFields,
+    ...locationDetailFields,
+    ...contactDetailFields,
+    "sources",
+    "media",
+]);
 
 const fieldLabels = {
     guid: "GUID",
@@ -409,14 +429,49 @@ function openListing(listing) {
 }
 
 function buildHighlights(listing) {
-    const orderedKeys = [
-        ...listingFieldOrder.filter((key) => Object.hasOwn(listing, key) && !excludedDetailFields.has(key)),
-        ...Object.keys(listing).filter((key) => !listingFieldOrder.includes(key) && !excludedDetailFields.has(key)),
+    const renderedKeys = new Set(excludedDetailFields);
+    const sections = [
+        createDetailSection("Key details", importantDetailFields, listing, renderedKeys),
+        createDetailSection("Features", featureDetailFields, listing, renderedKeys),
+        createDetailSection("Description", descriptionDetailFields, listing, renderedKeys),
+        createDetailSection("Location", locationDetailFields, listing, renderedKeys),
+        createDetailSection("Contact", contactDetailFields, listing, renderedKeys),
     ];
 
-    return orderedKeys
-        .map((key) => createDetailItem(key, listing[key]))
-        .filter(Boolean);
+    const otherKeys = Object.keys(listing).filter((key) => !groupedDetailFields.has(key) && !renderedKeys.has(key));
+    sections.push(createDetailSection("Other details", otherKeys, listing, renderedKeys));
+
+    return sections.filter(Boolean);
+}
+
+function createDetailSection(title, keys, listing, renderedKeys) {
+    const section = document.createElement("section");
+    section.className = "detail-section";
+
+    const heading = document.createElement("h3");
+    heading.textContent = title;
+
+    const grid = document.createElement("div");
+    grid.className = "detail-grid";
+
+    keys.forEach((key) => {
+        if (!Object.hasOwn(listing, key)) {
+            return;
+        }
+
+        renderedKeys.add(key);
+        const item = createDetailItem(key, listing[key]);
+        if (item) {
+            grid.appendChild(item);
+        }
+    });
+
+    if (!grid.childElementCount) {
+        return null;
+    }
+
+    section.append(heading, grid);
+    return section;
 }
 
 function createDetailItem(key, value) {
