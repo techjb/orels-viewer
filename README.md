@@ -4,6 +4,10 @@ ORELS Viewer is a static web application for validating and inspecting JSON file
 
 The viewer lets a user choose an ORELS schema version, load a JSON file, validate it in the browser, and review the listings in a full-screen data table. Valid files are shown with filtering, sorting, pagination, and a full-screen listing detail view.
 
+Open Real Estate Listings Schema repository:
+
+https://github.com/techjb/Open-Real-Estate-Listings-Schema
+
 ## Online Viewer
 
 Open the public viewer here:
