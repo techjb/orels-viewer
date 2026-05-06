@@ -578,15 +578,6 @@ select:focus-visible,
     gap: 8px;
 }
 
-.detail-section h3 {
-    margin: 0;
-    padding: 0 2px;
-    color: var(--black);
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: -0.32px;
-}
-
 .detail-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
