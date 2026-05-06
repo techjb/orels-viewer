@@ -520,7 +520,7 @@ select:focus-visible,
 
 .dialog-content {
     display: grid;
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
     gap: 12px;
     min-height: 0;
     padding: 12px;
@@ -672,15 +672,19 @@ select:focus-visible,
     white-space: nowrap;
 }
 
+.sources-section,
 .json-section {
     display: grid;
-    grid-template-rows: auto 1fr;
     gap: 8px;
-    min-height: 320px;
     padding: 14px;
     border-radius: var(--radius-md);
     background: var(--white);
     box-shadow: var(--shadow-ring);
+}
+
+.json-section {
+    grid-template-rows: auto 1fr;
+    min-height: 320px;
 }
 
 #dialog-json {

@@ -13,8 +13,9 @@ const listingFieldOrder = [
     "propertyType",
     "propertySubtype",
     "price",
+    "propertySize",
+    "landSize",
     "description",
-    "sources",
     "contactName",
     "contactPhone",
     "contactEmail",
@@ -27,8 +28,6 @@ const listingFieldOrder = [
     "longitude",
     "locationIsAccurate",
     "cadastralReference",
-    "propertySize",
-    "landSize",
     "constructionYear",
     "constructionStatus",
     "floors",
@@ -50,7 +49,6 @@ const listingFieldOrder = [
     "airConditioning",
     "petsAllowed",
     "securitySystems",
-    "media",
 ];
 
 const fieldLabels = {
@@ -99,10 +97,10 @@ const fieldLabels = {
     airConditioning: "Air conditioning",
     petsAllowed: "Pets allowed",
     securitySystems: "Security systems",
-    media: "Media",
 };
 
-const wideDetailFields = new Set(["description", "sources", "media", "contactOther", "address"]);
+const wideDetailFields = new Set(["description", "contactOther", "address"]);
+const excludedDetailFields = new Set(["sources", "media"]);
 
 let selectedSchema = null;
 let selectedSchemaVersion = "ES/1.2";
@@ -140,6 +138,8 @@ function bindElements() {
     elements.dialogTitle = document.getElementById("dialog-title");
     elements.dialogSubtitle = document.getElementById("dialog-subtitle");
     elements.dialogMedia = document.getElementById("dialog-media");
+    elements.dialogSources = document.getElementById("dialog-sources");
+    elements.dialogSourcesList = document.getElementById("dialog-sources-list");
     elements.dialogHighlights = document.getElementById("dialog-highlights");
     elements.dialogJson = document.getElementById("dialog-json");
     elements.copyJson = document.getElementById("copy-json");
@@ -403,14 +403,15 @@ function openListing(listing) {
     elements.dialogSubtitle.textContent = [listing.operation, listing.propertyType, listing.address].filter(Boolean).join(" / ");
     elements.dialogHighlights.replaceChildren(...buildHighlights(listing));
     renderMedia(listing);
+    renderDialogSources(listing);
     elements.dialogJson.textContent = JSON.stringify(listing, null, 2);
     elements.dialog.showModal();
 }
 
 function buildHighlights(listing) {
     const orderedKeys = [
-        ...listingFieldOrder.filter((key) => Object.hasOwn(listing, key)),
-        ...Object.keys(listing).filter((key) => !listingFieldOrder.includes(key)),
+        ...listingFieldOrder.filter((key) => Object.hasOwn(listing, key) && !excludedDetailFields.has(key)),
+        ...Object.keys(listing).filter((key) => !listingFieldOrder.includes(key) && !excludedDetailFields.has(key)),
     ];
 
     return orderedKeys
@@ -455,14 +456,6 @@ function renderDetailValue(key, value) {
         return createLinkValue(value, value);
     }
 
-    if (key === "sources" && Array.isArray(value)) {
-        return renderSources(value);
-    }
-
-    if (key === "media" && Array.isArray(value)) {
-        return renderMediaDetails(value);
-    }
-
     if (Array.isArray(value) || (value && typeof value === "object")) {
         return createPreValue(JSON.stringify(value, null, 2));
     }
@@ -472,6 +465,20 @@ function renderDetailValue(key, value) {
     }
 
     return createStrongValue(String(value));
+}
+
+function renderDialogSources(listing) {
+    elements.dialogSourcesList.replaceChildren();
+    const sources = Array.isArray(listing.sources) ? listing.sources : [];
+    const sourcesContent = renderSources(sources);
+
+    if (!sourcesContent) {
+        elements.dialogSources.classList.add("is-hidden");
+        return;
+    }
+
+    elements.dialogSourcesList.appendChild(sourcesContent);
+    elements.dialogSources.classList.remove("is-hidden");
 }
 
 function renderSources(sources) {
@@ -497,29 +504,7 @@ function renderSources(sources) {
         list.appendChild(row);
     });
 
-    return list.childElementCount ? list : createPreValue(JSON.stringify(sources, null, 2));
-}
-
-function renderMediaDetails(mediaItems) {
-    const list = document.createElement("div");
-    list.className = "detail-list";
-
-    mediaItems.filter((media) => media?.url).forEach((media) => {
-        const row = document.createElement("div");
-        row.className = "detail-list-row";
-        row.appendChild(createLinkValue(media.url, media.title || media.mediaType || media.url));
-
-        const meta = [media.mediaType, media.url].filter(Boolean).join(" / ");
-        if (meta) {
-            const small = document.createElement("small");
-            small.textContent = meta;
-            row.appendChild(small);
-        }
-
-        list.appendChild(row);
-    });
-
-    return list.childElementCount ? list : createPreValue(JSON.stringify(mediaItems, null, 2));
+    return list.childElementCount ? list : null;
 }
 
 function createStrongValue(text) {
