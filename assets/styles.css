@@ -198,9 +198,9 @@ select:focus-visible,
 .workspace {
     display: grid;
     grid-template-rows: auto auto auto 1fr;
-    gap: 12px;
+    gap: 10px;
     min-height: 0;
-    padding: 12px;
+    padding: 12px 12px 4px;
     background: var(--gray-50);
 }
 
@@ -359,13 +359,15 @@ select:focus-visible,
 }
 
 .table-panel {
+    display: grid;
     min-height: 0;
-    padding: 8px;
+    padding: 6px;
     overflow: hidden;
 }
 
 #listings-table {
     height: 100%;
+    min-height: 0;
 }
 
 .tabulator {
@@ -735,7 +737,7 @@ select:focus-visible,
 
 @media (max-width: 620px) {
     .workspace {
-        padding: 8px;
+        padding: 8px 8px 4px;
     }
 
     .toolbar {
