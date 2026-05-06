@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Validate and inspect Open Real Estate Listings Schema files.">
+    <title>ORELS Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/css/tabulator.min.css">
+    <link rel="stylesheet" href="assets/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/ajv@6.12.6/dist/ajv.bundle.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.1/dist/js/tabulator.min.js" defer></script>
+    <script src="assets/app.js" defer></script>
+</head>
+<body>
+    <div class="app-shell">
+        <header class="app-header">
+            <div class="brand-block">
+                <span class="brand-mark" aria-hidden="true">OR</span>
+                <div>
+                    <h1>ORELS Viewer</h1>
+                    <p>Validate and inspect Open Real Estate Listings Schema JSON files.</p>
+                </div>
+            </div>
+
+            <form class="toolbar" id="viewer-form">
+                <label class="field">
+                    <span>Schema version</span>
+                    <select id="schema-version" class="form-control" autocomplete="off">
+                        <option value="ES/1.0">ES/1.0</option>
+                        <option value="ES/1.1">ES/1.1</option>
+                        <option value="ES/1.2" selected>ES/1.2</option>
+                    </select>
+                </label>
+
+                <label class="file-button" for="json-file">
+                    <span>Choose JSON</span>
+                    <input id="json-file" type="file" accept="application/json,.json">
+                </label>
+
+                <button class="ghost-button" id="clear-button" type="button">Clear</button>
+            </form>
+        </header>
+
+        <main class="workspace">
+            <section class="status-panel" aria-live="polite">
+                <div class="status-copy">
+                    <span class="status-pill status-pill--idle" id="status-pill">Waiting for file</span>
+                    <strong id="file-title">No file loaded</strong>
+                    <span id="file-meta">Select a schema version, then load an ORELS JSON file.</span>
+                </div>
+
+                <div class="summary-grid" id="summary-grid">
+                    <div class="summary-item">
+                        <span>Listings</span>
+                        <strong id="summary-count">0</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Created</span>
+                        <strong id="summary-created">-</strong>
+                    </div>
+                    <div class="summary-item">
+                        <span>Schema URL</span>
+                        <strong id="summary-schema">-</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="drop-panel" id="drop-panel">
+                <div>
+                    <h2>Drop an ORELS JSON file here</h2>
+                    <p>The selected schema version will be used for validation before any listing is shown.</p>
+                </div>
+            </section>
+
+            <section class="errors-panel is-hidden" id="errors-panel">
+                <div class="panel-header">
+                    <h2>Validation errors</h2>
+                    <button class="icon-button" id="dismiss-errors" type="button" aria-label="Dismiss validation errors">X</button>
+                </div>
+                <ol id="errors-list"></ol>
+            </section>
+
+            <section class="table-panel" aria-label="Listings table">
+                <div id="listings-table"></div>
+            </section>
+        </main>
+    </div>
+
+    <div class="drag-overlay" id="drag-overlay">
+        <div>Drop JSON file to validate</div>
+    </div>
+
+    <dialog class="listing-dialog" id="listing-dialog">
+        <div class="dialog-shell">
+            <header class="dialog-header">
+                <div>
+                    <span class="status-pill" id="dialog-status">Listing</span>
+                    <h2 id="dialog-title">Listing details</h2>
+                    <p id="dialog-subtitle"></p>
+                </div>
+                <button class="close-button" id="dialog-close" type="button" aria-label="Close listing details">Close</button>
+            </header>
+
+            <div class="dialog-content">
+                <section class="media-strip is-hidden" id="dialog-media"></section>
+                <section class="detail-grid" id="dialog-highlights"></section>
+                <section class="json-section">
+                    <div class="panel-header">
+                        <h3>Complete JSON</h3>
+                        <button class="ghost-button" id="copy-json" type="button">Copy JSON</button>
+                    </div>
+                    <pre id="dialog-json"></pre>
+                </section>
+            </div>
+        </div>
+    </dialog>
+</body>
+</html>
