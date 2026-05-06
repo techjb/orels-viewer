@@ -570,20 +570,18 @@ select:focus-visible,
 
 .detail-sections {
     display: grid;
-    gap: 12px;
+    gap: 14px;
 }
 
 .detail-section {
     display: grid;
     gap: 8px;
-    padding: 14px;
-    border-radius: var(--radius-md);
-    background: var(--white);
-    box-shadow: var(--shadow-ring);
 }
 
 .detail-section h3 {
     margin: 0;
+    padding: 0 2px;
+    color: var(--black);
     font-size: 16px;
     font-weight: 600;
     letter-spacing: -0.32px;

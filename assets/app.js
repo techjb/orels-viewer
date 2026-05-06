@@ -21,10 +21,10 @@ const importantDetailFields = [
     "floor",
     "bedrooms",
     "bathrooms",
-    "parkings",
 ];
 
 const featureDetailFields = [
+    "parkings",
     "terrace",
     "garden",
     "garage",
