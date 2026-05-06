@@ -154,7 +154,8 @@ select:focus-visible,
 
 .file-button,
 .ghost-button,
-.close-button {
+.close-button,
+.repo-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -164,6 +165,11 @@ select:focus-visible,
     font-size: 14px;
     font-weight: 500;
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.repo-link {
+    color: var(--black);
+    text-decoration: none;
 }
 
 .file-button {
@@ -179,6 +185,7 @@ select:focus-visible,
     pointer-events: none;
 }
 
+.repo-link:hover,
 .ghost-button:hover,
 .close-button:hover,
 .icon-button:hover {
