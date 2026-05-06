@@ -4,20 +4,105 @@ const schemaPaths = {
     "ES/1.2": "schemas/ES/1.2.json",
 };
 
-const relevantFields = [
-    ["guid", "GUID"],
-    ["listingStatus", "Status"],
-    ["operation", "Operation"],
-    ["propertyType", "Property type"],
-    ["propertySubtype", "Subtype"],
-    ["price", "Price"],
-    ["propertySize", "Property size"],
-    ["bedrooms", "Bedrooms"],
-    ["bathrooms", "Bathrooms"],
-    ["address", "Address"],
-    ["listingDate", "Listing date"],
-    ["sourceName", "Source"],
+const listingFieldOrder = [
+    "guid",
+    "listingStatus",
+    "listingDate",
+    "unlistingDate",
+    "operation",
+    "propertyType",
+    "propertySubtype",
+    "price",
+    "description",
+    "sources",
+    "contactName",
+    "contactPhone",
+    "contactEmail",
+    "contactUrl",
+    "contactOther",
+    "address",
+    "lauId",
+    "lauName",
+    "latitude",
+    "longitude",
+    "locationIsAccurate",
+    "cadastralReference",
+    "propertySize",
+    "landSize",
+    "constructionYear",
+    "constructionStatus",
+    "floors",
+    "floor",
+    "bedrooms",
+    "bathrooms",
+    "parkings",
+    "terrace",
+    "garden",
+    "garage",
+    "motorbikeGarage",
+    "pool",
+    "lift",
+    "disabledAccess",
+    "storageRoom",
+    "furnished",
+    "nonFurnished",
+    "heating",
+    "airConditioning",
+    "petsAllowed",
+    "securitySystems",
+    "media",
 ];
+
+const fieldLabels = {
+    guid: "GUID",
+    listingStatus: "Status",
+    listingDate: "Listing date",
+    unlistingDate: "Unlisting date",
+    operation: "Operation",
+    propertyType: "Property type",
+    propertySubtype: "Subtype",
+    price: "Price",
+    description: "Description",
+    sources: "Sources",
+    contactName: "Contact name",
+    contactPhone: "Contact phone",
+    contactEmail: "Contact email",
+    contactUrl: "Contact URL",
+    contactOther: "Contact other",
+    address: "Address",
+    lauId: "LAU ID",
+    lauName: "LAU name",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    locationIsAccurate: "Location is accurate",
+    cadastralReference: "Cadastral reference",
+    propertySize: "Property size",
+    landSize: "Land size",
+    constructionYear: "Construction year",
+    constructionStatus: "Construction status",
+    floors: "Floors",
+    floor: "Floor",
+    bedrooms: "Bedrooms",
+    bathrooms: "Bathrooms",
+    parkings: "Parkings",
+    terrace: "Terrace",
+    garden: "Garden",
+    garage: "Garage",
+    motorbikeGarage: "Motorbike garage",
+    pool: "Pool",
+    lift: "Lift",
+    disabledAccess: "Disabled access",
+    storageRoom: "Storage room",
+    furnished: "Furnished",
+    nonFurnished: "Non furnished",
+    heating: "Heating",
+    airConditioning: "Air conditioning",
+    petsAllowed: "Pets allowed",
+    securitySystems: "Security systems",
+    media: "Media",
+};
+
+const wideDetailFields = new Set(["description", "sources", "media", "contactOther", "address"]);
 
 let selectedSchema = null;
 let selectedSchemaVersion = "ES/1.2";
@@ -129,7 +214,8 @@ function initializeTable() {
             { title: "Type", field: "propertyType", width: 136, headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
             { title: "Subtype", field: "propertySubtype", width: 150, headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
             { title: "Price", field: "priceAmount", width: 132, sorter: "number", sorterParams: { alignEmptyValues: "bottom" }, formatter: (cell) => cell.getData().priceDisplay || "" },
-            { title: "Size", field: "propertySize", width: 100, hozAlign: "right", sorter: "number", headerFilter: "number" },
+            { title: "Built size", field: "propertySize", width: 116, hozAlign: "right", sorter: "number", headerFilter: "number", formatter: (cell) => formatSquareMeters(cell.getValue()) },
+            { title: "Land size", field: "landSize", width: 112, hozAlign: "right", sorter: "number", headerFilter: "number", formatter: (cell) => formatSquareMeters(cell.getValue()) },
             { title: "Beds", field: "bedrooms", width: 92, hozAlign: "right", sorter: "number", headerFilter: "number" },
             { title: "Baths", field: "bathrooms", width: 96, hozAlign: "right", sorter: "number", headerFilter: "number" },
             { title: "Address", field: "address", minWidth: 220, headerFilter: "input" },
@@ -222,6 +308,7 @@ function toTableRow(listing, index) {
         priceAmount: listing.price?.amount ?? null,
         priceDisplay: formatPrice(listing.price),
         propertySize: listing.propertySize ?? "",
+        landSize: listing.landSize ?? "",
         bedrooms: listing.bedrooms ?? "",
         bathrooms: listing.bathrooms ?? "",
         address: listing.address || "",
@@ -321,46 +408,155 @@ function openListing(listing) {
 }
 
 function buildHighlights(listing) {
-    const source = Array.isArray(listing.sources) ? listing.sources[0] : null;
-    const values = {
-        guid: listing.guid,
-        listingStatus: listing.listingStatus,
-        operation: listing.operation,
-        propertyType: listing.propertyType,
-        propertySubtype: listing.propertySubtype,
-        price: formatPrice(listing.price),
-        propertySize: listing.propertySize,
-        bedrooms: listing.bedrooms,
-        bathrooms: listing.bathrooms,
-        address: listing.address,
-        listingDate: formatDate(listing.listingDate),
-        sourceName: {
-            text: source?.sourceName,
-            url: source?.sourceUrl,
-        },
-    };
+    const orderedKeys = [
+        ...listingFieldOrder.filter((key) => Object.hasOwn(listing, key)),
+        ...Object.keys(listing).filter((key) => !listingFieldOrder.includes(key)),
+    ];
 
-    return relevantFields.map(([key, label]) => {
-        const item = document.createElement("div");
-        item.className = "detail-item";
-        const itemLabel = document.createElement("span");
-        itemLabel.textContent = label;
+    return orderedKeys
+        .map((key) => createDetailItem(key, listing[key]))
+        .filter(Boolean);
+}
 
-        let itemValue;
-        if (key === "sourceName" && values.sourceName?.url) {
-            itemValue = document.createElement("a");
-            itemValue.href = values.sourceName.url;
-            itemValue.target = "_blank";
-            itemValue.rel = "noopener noreferrer";
-            itemValue.textContent = values.sourceName.text || values.sourceName.url;
-        } else {
-            itemValue = document.createElement("strong");
-            itemValue.textContent = key === "sourceName" ? values.sourceName?.text || "-" : values[key] ?? "-";
+function createDetailItem(key, value) {
+    if (!hasDisplayValue(value)) {
+        return null;
+    }
+
+    const item = document.createElement("div");
+    item.className = `detail-item${wideDetailFields.has(key) ? " detail-item--wide" : ""}`;
+
+    const itemLabel = document.createElement("span");
+    itemLabel.textContent = fieldLabels[key] || toTitleLabel(key);
+    item.appendChild(itemLabel);
+    item.appendChild(renderDetailValue(key, value));
+
+    return item;
+}
+
+function renderDetailValue(key, value) {
+    if (key === "price") {
+        return createStrongValue(formatPrice(value));
+    }
+
+    if (key === "propertySize" || key === "landSize") {
+        return createStrongValue(formatSquareMeters(value));
+    }
+
+    if (key === "listingDate" || key === "unlistingDate" || key === "dataSourceUpdate") {
+        return createStrongValue(formatDate(value) || value);
+    }
+
+    if (key === "contactEmail") {
+        return createLinkValue(`mailto:${value}`, value);
+    }
+
+    if (key === "contactUrl" || key.endsWith("Url")) {
+        return createLinkValue(value, value);
+    }
+
+    if (key === "sources" && Array.isArray(value)) {
+        return renderSources(value);
+    }
+
+    if (key === "media" && Array.isArray(value)) {
+        return renderMediaDetails(value);
+    }
+
+    if (Array.isArray(value) || (value && typeof value === "object")) {
+        return createPreValue(JSON.stringify(value, null, 2));
+    }
+
+    if (typeof value === "boolean") {
+        return createStrongValue(value ? "Yes" : "No");
+    }
+
+    return createStrongValue(String(value));
+}
+
+function renderSources(sources) {
+    const list = document.createElement("div");
+    list.className = "detail-list";
+
+    sources.filter(hasDisplayValue).forEach((source) => {
+        const row = document.createElement("div");
+        row.className = "detail-list-row";
+
+        if (source.sourceUrl) {
+            row.appendChild(createLinkValue(source.sourceUrl, source.sourceName || source.sourceUrl));
+        } else if (source.sourceName) {
+            row.appendChild(createStrongValue(source.sourceName));
         }
 
-        item.append(itemLabel, itemValue);
-        return item;
+        if (source.sourceGuid) {
+            const guid = document.createElement("small");
+            guid.textContent = source.sourceGuid;
+            row.appendChild(guid);
+        }
+
+        list.appendChild(row);
     });
+
+    return list.childElementCount ? list : createPreValue(JSON.stringify(sources, null, 2));
+}
+
+function renderMediaDetails(mediaItems) {
+    const list = document.createElement("div");
+    list.className = "detail-list";
+
+    mediaItems.filter((media) => media?.url).forEach((media) => {
+        const row = document.createElement("div");
+        row.className = "detail-list-row";
+        row.appendChild(createLinkValue(media.url, media.title || media.mediaType || media.url));
+
+        const meta = [media.mediaType, media.url].filter(Boolean).join(" / ");
+        if (meta) {
+            const small = document.createElement("small");
+            small.textContent = meta;
+            row.appendChild(small);
+        }
+
+        list.appendChild(row);
+    });
+
+    return list.childElementCount ? list : createPreValue(JSON.stringify(mediaItems, null, 2));
+}
+
+function createStrongValue(text) {
+    const value = document.createElement("strong");
+    value.textContent = text;
+    return value;
+}
+
+function createLinkValue(url, text) {
+    const value = document.createElement("a");
+    value.href = url;
+    value.target = "_blank";
+    value.rel = "noopener noreferrer";
+    value.textContent = text;
+    return value;
+}
+
+function createPreValue(text) {
+    const value = document.createElement("pre");
+    value.textContent = text;
+    return value;
+}
+
+function hasDisplayValue(value) {
+    if (value === null || value === undefined || value === "") {
+        return false;
+    }
+
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+
+    if (typeof value === "object") {
+        return Object.keys(value).length > 0;
+    }
+
+    return true;
 }
 
 function renderMedia(listing) {
@@ -490,6 +686,19 @@ function formatPrice(price) {
     }
 }
 
+function formatSquareMeters(value) {
+    if (value === null || value === undefined || value === "") {
+        return "";
+    }
+
+    const numericValue = Number(value);
+    const formattedValue = Number.isFinite(numericValue)
+        ? new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(numericValue)
+        : String(value);
+
+    return `${formattedValue} m\u00b2`;
+}
+
 function formatDate(value) {
     if (!value) {
         return "";
@@ -505,6 +714,13 @@ function formatDate(value) {
         month: "short",
         day: "2-digit",
     }).format(date);
+}
+
+function toTitleLabel(value) {
+    return String(value)
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/[_-]+/g, " ")
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function escapeHtml(value) {
