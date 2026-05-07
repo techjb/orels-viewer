@@ -4,6 +4,8 @@ const schemaPaths = {
     "ES/1.2": "schemas/ES/1.2.json",
 };
 
+const displayLocale = "es-ES";
+
 const importantDetailFields = [
     "guid",
     "listingStatus",
@@ -774,13 +776,13 @@ function formatPrice(price) {
     }
 
     try {
-        return new Intl.NumberFormat("en", {
+        return new Intl.NumberFormat(displayLocale, {
             style: "currency",
             currency: price.currency || "EUR",
             maximumFractionDigits: 0,
         }).format(price.amount);
     } catch {
-        return `${price.amount} ${price.currency || ""}`.trim();
+        return `${formatNumber(price.amount, { maximumFractionDigits: 0 })} ${price.currency || ""}`.trim();
     }
 }
 
@@ -791,10 +793,14 @@ function formatSquareMeters(value) {
 
     const numericValue = Number(value);
     const formattedValue = Number.isFinite(numericValue)
-        ? new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(numericValue)
+        ? formatNumber(numericValue, { maximumFractionDigits: 2 })
         : String(value);
 
     return `${formattedValue} m\u00b2`;
+}
+
+function formatNumber(value, options = {}) {
+    return new Intl.NumberFormat(displayLocale, options).format(value);
 }
 
 function formatDate(value) {
