@@ -235,7 +235,7 @@ function initializeTable() {
             { title: "Operation", field: "operation", width: 126, headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
             { title: "Type", field: "propertyType", width: 136, headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
             { title: "Subtype", field: "propertySubtype", width: 150, headerFilter: "list", headerFilterParams: { valuesLookup: true, clearable: true } },
-            { title: "Price", field: "priceAmount", width: 132, sorter: "number", sorterParams: { alignEmptyValues: "bottom" }, formatter: (cell) => cell.getData().priceDisplay || "" },
+            { title: "Price", field: "priceAmount", width: 132, sorter: "number", sorterParams: { alignEmptyValues: "bottom" }, headerFilter: "number", formatter: (cell) => cell.getData().priceDisplay || "" },
             { title: "Built size", field: "propertySize", width: 116, hozAlign: "right", sorter: "number", headerFilter: "number", formatter: (cell) => formatSquareMeters(cell.getValue()) },
             { title: "Land size", field: "landSize", width: 112, hozAlign: "right", sorter: "number", headerFilter: "number", formatter: (cell) => formatSquareMeters(cell.getValue()) },
             { title: "Beds", field: "bedrooms", width: 92, hozAlign: "right", sorter: "number", headerFilter: "number" },
@@ -298,24 +298,80 @@ function validateAndRender(json, fileName) {
     });
     configureAjvFormats(ajv);
 
-    const validate = ajv.compile(selectedSchema);
-    const isValid = validate(json);
+    const validateFile = ajv.compile(createFileContainerSchema(selectedSchema));
+    const isFileUsable = validateFile(json);
 
-    if (!isValid) {
+    if (!isFileUsable) {
         table.clearData();
         updateSummary(null);
         elements.dropPanel.classList.remove("is-hidden");
-        showErrorMessages(validate.errors.map(formatValidationError));
-        setStatus("invalid", fileName, `${validate.errors.length} validation error${validate.errors.length === 1 ? "" : "s"} found.`);
+        showErrorMessages(validateFile.errors.map(formatValidationError));
+        setStatus("invalid", fileName, `${validateFile.errors.length} validation error${validateFile.errors.length === 1 ? "" : "s"} found.`);
         return;
     }
 
+    const listingSchema = getListingSchema(selectedSchema);
+    if (!listingSchema) {
+        table.clearData();
+        updateSummary(null);
+        elements.dropPanel.classList.remove("is-hidden");
+        showErrorMessages(["The selected schema does not expose a listing definition."]);
+        setStatus("invalid", fileName, "Validation could not run.");
+        return;
+    }
+
+    const validateListing = ajv.compile(listingSchema);
     const listings = Array.isArray(json.listings) ? json.listings : [];
-    table.setData(listings.map(toTableRow));
-    updateSummary(json);
+    const rows = [];
+    const listingErrors = [];
+
+    listings.forEach((listing, index) => {
+        const isListingValid = validateListing(listing);
+
+        if (isListingValid) {
+            rows.push(toTableRow(listing, index));
+            return;
+        }
+
+        (validateListing.errors || []).forEach((error) => {
+            listingErrors.push(formatListingValidationError(error, listing, index));
+        });
+    });
+
+    table.setData(rows);
+    updateSummary(json, rows.length);
     elements.dropPanel.classList.add("is-hidden");
+
+    if (listingErrors.length > 0) {
+        showErrorMessages(listingErrors);
+        setStatus("invalid", fileName, `${rows.length} of ${listings.length} listing${listings.length === 1 ? "" : "s"} loaded; ${listingErrors.length} validation error${listingErrors.length === 1 ? "" : "s"} found.`);
+        return;
+    }
+
     hideErrors();
     setStatus("valid", fileName, `${listings.length} listing${listings.length === 1 ? "" : "s"} validated with ${selectedSchemaVersion}.`);
+}
+
+function createFileContainerSchema(schema) {
+    const fileSchema = structuredCloneFallback(schema);
+
+    if (fileSchema?.properties?.listings) {
+        fileSchema.properties.listings.items = true;
+    }
+
+    return fileSchema;
+}
+
+function getListingSchema(schema) {
+    return schema?.properties?.listings?.items || null;
+}
+
+function structuredCloneFallback(value) {
+    if (typeof structuredClone === "function") {
+        return structuredClone(value);
+    }
+
+    return JSON.parse(JSON.stringify(value));
 }
 
 function configureAjvFormats(ajv) {
@@ -401,7 +457,7 @@ function toTableRow(listing, index) {
     };
 }
 
-function updateSummary(json) {
+function updateSummary(json, validListingCount = null) {
     if (!json) {
         elements.summaryCount.textContent = "0";
         elements.summaryCreated.textContent = "-";
@@ -409,7 +465,10 @@ function updateSummary(json) {
         return;
     }
 
-    elements.summaryCount.textContent = String(Array.isArray(json.listings) ? json.listings.length : 0);
+    const listingCount = Array.isArray(json.listings) ? json.listings.length : 0;
+    elements.summaryCount.textContent = validListingCount !== null && validListingCount !== listingCount
+        ? `${validListingCount} / ${listingCount}`
+        : String(listingCount);
     elements.summaryCreated.textContent = formatDate(json.created) || "-";
     elements.summarySchema.textContent = json.schemaUrl || selectedSchemaVersion;
 }
@@ -441,6 +500,15 @@ function formatValidationError(error) {
     const missingProperty = error.params?.missingProperty ? `.${error.params.missingProperty}` : "";
     const location = `${path || "(root)"}${missingProperty}`;
     return `${location}: ${error.message || "Invalid value"}`;
+}
+
+function formatListingValidationError(error, listing, index) {
+    const path = error.dataPath || error.instancePath || "";
+    const missingProperty = error.params?.missingProperty ? `.${error.params.missingProperty}` : "";
+    const location = `${path || "(listing)"}${missingProperty}`;
+    const guid = typeof listing?.guid === "string" && listing.guid ? `, GUID ${listing.guid}` : "";
+
+    return `Listing ${index + 1}${guid} ${location}: ${error.message || "Invalid value"}`;
 }
 
 function resetViewer() {
