@@ -90,6 +90,23 @@
         <div>Drop JSON file to validate</div>
     </div>
 
+    <div class="loading-overlay is-hidden" id="loading-overlay" role="status" aria-live="polite" aria-modal="true">
+        <div class="loading-card">
+            <div class="loading-header">
+                <span class="status-pill status-pill--idle" id="loading-stage">Preparing</span>
+                <button class="ghost-button" id="cancel-load" type="button">Cancel</button>
+            </div>
+            <div class="loading-copy">
+                <h2>Loading ORELS file</h2>
+                <p id="loading-file">Preparing JSON file.</p>
+            </div>
+            <div class="progress-track" aria-hidden="true">
+                <div class="progress-bar" id="loading-progress"></div>
+            </div>
+            <div class="loading-detail" id="loading-detail">Starting import...</div>
+        </div>
+    </div>
+
     <dialog class="listing-dialog" id="listing-dialog">
         <div class="dialog-shell">
             <header class="dialog-header">

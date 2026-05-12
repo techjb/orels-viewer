@@ -129,6 +129,9 @@ let selectedSchemaVersion = "ES/1.2";
 let loadedFile = null;
 let loadedJson = null;
 let table = null;
+let importWorker = null;
+let importRunId = 0;
+let isImporting = false;
 
 const elements = {};
 
@@ -142,6 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function bindElements() {
     elements.schemaVersion = document.getElementById("schema-version");
     elements.jsonFile = document.getElementById("json-file");
+    elements.fileButton = document.querySelector(".file-button");
     elements.clearButton = document.getElementById("clear-button");
     elements.statusPill = document.getElementById("status-pill");
     elements.fileTitle = document.getElementById("file-title");
@@ -165,14 +169,22 @@ function bindElements() {
     elements.dialogHighlights = document.getElementById("dialog-highlights");
     elements.dialogJson = document.getElementById("dialog-json");
     elements.copyJson = document.getElementById("copy-json");
+    elements.loadingOverlay = document.getElementById("loading-overlay");
+    elements.loadingStage = document.getElementById("loading-stage");
+    elements.loadingFile = document.getElementById("loading-file");
+    elements.loadingProgress = document.getElementById("loading-progress");
+    elements.loadingDetail = document.getElementById("loading-detail");
+    elements.cancelLoad = document.getElementById("cancel-load");
 }
 
 function bindEvents() {
     elements.schemaVersion.addEventListener("change", async () => {
+        const fileToReload = loadedFile;
+        cancelImport("Schema changed. Import stopped.");
         selectedSchemaVersion = elements.schemaVersion.value;
         await loadSelectedSchema();
-        if (loadedFile) {
-            validateAndRender(loadedJson, loadedFile.name);
+        if (fileToReload) {
+            readFile(fileToReload);
         }
     });
 
@@ -184,6 +196,7 @@ function bindEvents() {
     });
 
     elements.clearButton.addEventListener("click", resetViewer);
+    elements.cancelLoad.addEventListener("click", () => cancelImport("Import canceled."));
     elements.dismissErrors.addEventListener("click", () => hideErrors());
     elements.dialogClose.addEventListener("click", () => elements.dialog.close());
     elements.copyJson.addEventListener("click", copyDialogJson);
@@ -254,12 +267,238 @@ function strongFormatter(cell) {
 }
 
 function readFile(file) {
+    if (!selectedSchema) {
+        showErrorMessages(["No schema is available. Select a schema version and try again."]);
+        setStatus("invalid", file.name, "Validation could not run.");
+        return;
+    }
+
+    if (typeof Worker === "undefined") {
+        readFileOnMainThread(file);
+        return;
+    }
+
+    startWorkerImport(file);
+}
+
+function startWorkerImport(file) {
+    cancelImport(null);
+    hideErrors();
+    loadedFile = file;
+    loadedJson = null;
+    importRunId += 1;
+    isImporting = true;
+    setImportControlsDisabled(true);
+    table.clearData();
+    updateSummary(null);
+    elements.dropPanel.classList.add("is-hidden");
+    setStatus("idle", file.name, `${formatFileSize(file.size)} selected. Import started.`);
+    updateImportProgress({
+        stage: "Reading file",
+        fileName: file.name,
+        fileSize: file.size,
+        detail: "Reading JSON file...",
+        percent: 0,
+    });
+    showImportOverlay();
+
+    const runId = importRunId;
+    importWorker = new Worker("assets/orels-worker.js");
+    importWorker.onmessage = (event) => {
+        if (runId !== importRunId) {
+            return;
+        }
+
+        handleWorkerMessage(event.data, file, runId);
+    };
+    importWorker.onerror = (event) => {
+        if (runId !== importRunId) {
+            return;
+        }
+
+        finishImportWithError(file, `Import worker failed: ${event.message || "Unknown error"}`);
+    };
+    importWorker.postMessage({
+        type: "process",
+        file,
+        schema: selectedSchema,
+        schemaVersion: selectedSchemaVersion,
+    });
+}
+
+function handleWorkerMessage(message, file, runId) {
+    if (!message || typeof message !== "object") {
+        return;
+    }
+
+    if (message.type === "progress") {
+        updateImportProgress(message);
+        return;
+    }
+
+    if (message.type === "error") {
+        finishImportWithError(file, message.message || "The file could not be loaded.");
+        return;
+    }
+
+    if (message.type === "result") {
+        finishWorkerImport(message, file, runId);
+    }
+}
+
+async function finishWorkerImport(result, file, runId) {
+    updateImportProgress({
+        stage: "Rendering table",
+        fileName: file.name,
+        fileSize: file.size,
+        detail: "Preparing rows for display...",
+        percent: 96,
+    });
+    await nextFrame();
+
+    if (runId !== importRunId) {
+        return;
+    }
+
+    cleanupImportWorker();
+    isImporting = false;
+    setImportControlsDisabled(false);
+
+    if (!result.isFileUsable) {
+        table.clearData();
+        updateSummary(null);
+        elements.dropPanel.classList.remove("is-hidden");
+        showErrorMessages(result.fileErrors || ["The file does not match the selected ORELS schema."]);
+        setStatus("invalid", file.name, `${result.fileErrorCount || result.fileErrors?.length || 0} validation error${result.fileErrorCount === 1 ? "" : "s"} found.`);
+        hideImportOverlay();
+        return;
+    }
+
+    table.setData(result.rows || []);
+    updateSummaryFromImport(result.summary, result.validListingCount);
+    elements.dropPanel.classList.add("is-hidden");
+
+    if (result.listingErrorCount > 0) {
+        const messages = result.listingErrors || [];
+        if (result.listingErrorCount > messages.length) {
+            messages.push(`${result.listingErrorCount - messages.length} additional listing validation errors were not shown.`);
+        }
+        showErrorMessages(messages);
+        setStatus("invalid", file.name, `${result.validListingCount} of ${result.listingCount} listing${result.listingCount === 1 ? "" : "s"} loaded; ${result.listingErrorCount} validation error${result.listingErrorCount === 1 ? "" : "s"} found.`);
+        hideImportOverlay();
+        return;
+    }
+
+    hideErrors();
+    setStatus("valid", file.name, `${result.listingCount} listing${result.listingCount === 1 ? "" : "s"} validated with ${selectedSchemaVersion}.`);
+    hideImportOverlay();
+}
+
+function finishImportWithError(file, message) {
+    cleanupImportWorker();
+    isImporting = false;
+    setImportControlsDisabled(false);
+    table.clearData();
+    updateSummary(null);
+    elements.dropPanel.classList.remove("is-hidden");
+    showErrorMessages([message]);
+    setStatus("invalid", file.name, "File import failed.");
+    hideImportOverlay();
+}
+
+function cancelImport(message) {
+    if (!isImporting && !importWorker) {
+        return;
+    }
+
+    importRunId += 1;
+    cleanupImportWorker();
+    isImporting = false;
+    setImportControlsDisabled(false);
+    hideImportOverlay();
+
+    if (message) {
+        setStatus("idle", loadedFile?.name || "No file loaded", message);
+    }
+}
+
+function cleanupImportWorker() {
+    if (importWorker) {
+        importWorker.terminate();
+        importWorker = null;
+    }
+}
+
+function showImportOverlay() {
+    elements.loadingOverlay.classList.remove("is-hidden");
+}
+
+function hideImportOverlay() {
+    elements.loadingOverlay.classList.add("is-hidden");
+    elements.loadingProgress.classList.remove("is-indeterminate");
+}
+
+function updateImportProgress({ stage, fileName, fileSize, detail, percent, indeterminate }) {
+    elements.loadingStage.textContent = stage || "Loading";
+    elements.loadingFile.textContent = [fileName, typeof fileSize === "number" ? formatFileSize(fileSize) : ""].filter(Boolean).join(" - ");
+    elements.loadingDetail.textContent = detail || "";
+    elements.loadingProgress.classList.toggle("is-indeterminate", Boolean(indeterminate));
+
+    if (!indeterminate) {
+        const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+        elements.loadingProgress.style.width = `${safePercent}%`;
+    }
+}
+
+function setImportControlsDisabled(disabled) {
+    elements.schemaVersion.disabled = disabled;
+    elements.jsonFile.disabled = disabled;
+    elements.clearButton.disabled = disabled;
+    elements.fileButton.classList.toggle("is-disabled", disabled);
+}
+
+function readFileOnMainThread(file) {
     const reader = new FileReader();
-    reader.onload = () => {
+    loadedFile = file;
+    loadedJson = null;
+    hideErrors();
+    setImportControlsDisabled(true);
+    updateImportProgress({
+        stage: "Reading file",
+        fileName: file.name,
+        fileSize: file.size,
+        detail: "Reading JSON file...",
+        percent: 0,
+    });
+    showImportOverlay();
+
+    reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+            updateImportProgress({
+                stage: "Reading file",
+                fileName: file.name,
+                fileSize: file.size,
+                detail: `${formatFileSize(event.loaded)} of ${formatFileSize(event.total)} read.`,
+                percent: Math.round((event.loaded / event.total) * 35),
+            });
+        }
+    };
+    reader.onload = async () => {
+        updateImportProgress({
+            stage: "Parsing JSON",
+            fileName: file.name,
+            fileSize: file.size,
+            detail: "Parsing JSON in this browser tab...",
+            percent: 40,
+            indeterminate: true,
+        });
+        await nextFrame();
+
         try {
             loadedFile = file;
             loadedJson = JSON.parse(String(reader.result));
             validateAndRender(loadedJson, file.name);
+            hideImportOverlay();
         } catch (error) {
             loadedFile = file;
             loadedJson = null;
@@ -267,11 +506,16 @@ function readFile(file) {
             updateSummary(null);
             showErrorMessages([`The file could not be parsed as JSON: ${error.message}`]);
             setStatus("invalid", file.name, "Invalid JSON syntax.");
+            hideImportOverlay();
+        } finally {
+            setImportControlsDisabled(false);
         }
     };
     reader.onerror = () => {
         showErrorMessages([`The file could not be read: ${reader.error?.message || "Unknown error"}`]);
         setStatus("invalid", file.name, "File reading failed.");
+        setImportControlsDisabled(false);
+        hideImportOverlay();
     };
     reader.readAsText(file);
 }
@@ -473,6 +717,20 @@ function updateSummary(json, validListingCount = null) {
     elements.summarySchema.textContent = json.schemaUrl || selectedSchemaVersion;
 }
 
+function updateSummaryFromImport(summary, validListingCount = null) {
+    if (!summary) {
+        updateSummary(null);
+        return;
+    }
+
+    const listingCount = summary.listingCount || 0;
+    elements.summaryCount.textContent = validListingCount !== null && validListingCount !== listingCount
+        ? `${validListingCount} / ${listingCount}`
+        : String(listingCount);
+    elements.summaryCreated.textContent = formatDate(summary.created) || "-";
+    elements.summarySchema.textContent = summary.schemaUrl || selectedSchemaVersion;
+}
+
 function setStatus(kind, title, meta) {
     elements.statusPill.className = `status-pill status-pill--${kind}`;
     elements.statusPill.textContent = kind === "valid" ? "Valid file" : kind === "invalid" ? "Needs attention" : "Ready";
@@ -512,6 +770,7 @@ function formatListingValidationError(error, listing, index) {
 }
 
 function resetViewer() {
+    cancelImport(null);
     loadedFile = null;
     loadedJson = null;
     elements.jsonFile.value = "";
@@ -520,6 +779,28 @@ function resetViewer() {
     elements.dropPanel.classList.remove("is-hidden");
     hideErrors();
     setStatus("idle", "No file loaded", `${selectedSchemaVersion} schema is ready.`);
+}
+
+function nextFrame() {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes)) {
+        return "";
+    }
+
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+
+    const maximumFractionDigits = value >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${formatNumber(value, { maximumFractionDigits })} ${units[unitIndex]}`;
 }
 
 function allowDrop(event) {
