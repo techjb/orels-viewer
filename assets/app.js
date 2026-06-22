@@ -2,6 +2,7 @@ const schemaPaths = {
     "ES/1.0": "schemas/ES/1.0.json",
     "ES/1.1": "schemas/ES/1.1.json",
     "ES/1.2": "schemas/ES/1.2.json",
+    "ES/1.3": "schemas/ES/1.3.json",
 };
 
 const displayLocale = "es-ES";
@@ -19,6 +20,7 @@ const importantDetailFields = [
     "landSize",
     "constructionYear",
     "constructionStatus",
+    "energyEfficiencyRating",
     "floors",
     "floor",
     "bedrooms",
@@ -100,6 +102,7 @@ const fieldLabels = {
     landSize: "Land size",
     constructionYear: "Construction year",
     constructionStatus: "Construction status",
+    energyEfficiencyRating: "Energy efficiency rating",
     floors: "Floors",
     floor: "Floor",
     bedrooms: "Bedrooms",
@@ -125,7 +128,7 @@ const wideDetailFields = new Set(["description", "contactOther", "address"]);
 const excludedDetailFields = new Set(["sources", "media"]);
 
 let selectedSchema = null;
-let selectedSchemaVersion = "ES/1.2";
+let selectedSchemaVersion = "ES/1.3";
 let loadedFile = null;
 let loadedJson = null;
 let table = null;
