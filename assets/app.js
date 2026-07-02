@@ -3,6 +3,7 @@ const schemaPaths = {
     "ES/1.1": "schemas/ES/1.1.json",
     "ES/1.2": "schemas/ES/1.2.json",
     "ES/1.3": "schemas/ES/1.3.json",
+    "ES/1.4": "schemas/ES/1.4.json",
 };
 
 const displayLocale = "es-ES";
@@ -128,7 +129,7 @@ const wideDetailFields = new Set(["description", "contactOther", "address"]);
 const excludedDetailFields = new Set(["sources", "media"]);
 
 let selectedSchema = null;
-let selectedSchemaVersion = "ES/1.3";
+let selectedSchemaVersion = "ES/1.4";
 let loadedFile = null;
 let loadedJson = null;
 let table = null;

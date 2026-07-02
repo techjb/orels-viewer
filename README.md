@@ -16,7 +16,7 @@ https://techjb.github.io/orels-viewer/
 
 ## Features
 
-- Validate ORELS JSON files against ES schema versions 1.0, 1.1, 1.2, and 1.3.
+- Validate ORELS JSON files against ES schema versions 1.0, 1.1, 1.2, 1.3, and 1.4.
 - Show validation errors before rendering listing data.
 - Display valid listings in a full-screen table with column filters, sorting, and pagination.
 - Open any listing to inspect highlights, media links, source links, and the complete JSON payload.
@@ -42,4 +42,4 @@ Then visit:
 
 http://localhost:5177/
 
-The viewer includes local copies of the ES schemas for versions 1.0, 1.1, 1.2, and 1.3. The table UI uses Tabulator and validation uses AJV.
+The viewer includes local copies of the ES schemas for versions 1.0, 1.1, 1.2, 1.3, and 1.4. The table UI uses Tabulator and validation uses AJV.
